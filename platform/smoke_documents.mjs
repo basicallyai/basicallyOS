@@ -1,0 +1,52 @@
+import assert from 'node:assert/strict';
+import { chromium } from 'playwright';
+import { fixture, waitFor } from './tests/helpers.mjs';
+const fix = await fixture(), browser = await chromium.launch({ channel: process.platform === 'win32' ? 'msedge' : undefined, headless: true });
+const context = await browser.newContext({ permissions: ['clipboard-read', 'clipboard-write'], viewport: { width: 1440, height: 960 } });
+const page = await context.newPage(), errors = []; page.on('console', m => { if (m.type()==='error' || m.type()==='warning') console.log('CONSOLE',m.text()); }); page.on('pageerror', e => { errors.push(e.message); console.log('PAGEERROR', e.message); });
+try {
+  const notes = fix.app.resources.list().find(row => row.managed === 'notes');
+  const content = '---\ntags: [test]\n---\n\n# Small Repairs\n\nThe bike had leaned against the fence.\n\n**This is bold text.**\n\n*This is italic text.*\n\n| Name | Value |\n| --- | --- |\n| A | B |\n\n[[Other note]]\n\n```python\nprint("hello")\n```\n';
+  await fix.request('/api/resources/save', { workspaceId: notes.id, path: 'Repairs.md', content, revision: null });
+  await page.goto(fix.app.url); await page.locator('#setup-dialog [data-close]').click(); await page.locator('#nav-notes').click(); await page.locator('.tree-open[title="Repairs"]').click();
+  const editor = page.locator('.file-rich-editor .tiptap'); await editor.waitFor();
+  assert.equal(await page.locator('.file-source:visible,.file-preview:visible').count(), 0);
+  assert.equal(await editor.locator('h1').textContent(), 'Small Repairs'); assert.equal(await editor.locator('strong').textContent(), 'This is bold text.'); assert.equal(await editor.locator('table').count(), 1);
+  await editor.locator('p').filter({ hasText: 'The bike' }).click({ position: { x: 20, y: 12 } }); await page.keyboard.press('End'); await page.keyboard.type(' Repaired today.');
+  await waitFor(async () => (await fix.app.resources.read({ workspaceId: notes.id, path: 'Repairs.md' })).content.includes('Repaired today.'));
+  const saved = await fix.app.resources.read({ workspaceId: notes.id, path: 'Repairs.md' }); assert.match(saved.content, /tags: \[test\]/); assert.match(saved.content, /\[\[Other note\]\]/); assert.match(saved.content, /```python/);
+  await page.keyboard.press('Control+End'); await page.keyboard.press('Enter'); await page.keyboard.type('## '); await page.keyboard.type('Next repairs'); assert.ok(await editor.locator('h2').count());
+  await page.keyboard.press('Control+z'); await page.keyboard.press('Control+Shift+z');
+  await page.screenshot({ path: 'platform/logs/documents-editor.png', animations: 'disabled' });
+  // Two standalone documents, not notes, persisted and reopened without duplication.
+  await fix.request('/api/providers', { id: 'test', name: 'Test', api: 'openai-completions', baseUrl: 'https://example.com/v1', apiKey: 'test', models: [{ id: 'test', name: 'Test', contextWindow: 4096, maxTokens: 1024 }] });
+  const chat = await fix.request('/api/chats', {});
+  const first = await fix.request('/api/chats/' + chat.id + '/canvases', { title: 'Architecture', content: '# Architecture\n\n**Independent** document.\n\n```python\na = 1\nb = 2\n```' });
+  const second = await fix.request('/api/chats/' + chat.id + '/canvases', { title: 'Training', content: '# Training\n\nA separate plan.' });
+  assert.equal((await fix.app.notes.find('Architecture', [notes.id])).matches.length, 0);
+  await page.locator('#nav-chat').click(); await page.goto(fix.app.url + '#chat=' + chat.id); await page.locator('.canvas-title-text').filter({ hasText: 'Training' }).waitFor();
+  await page.getByLabel('Conversation Canvases').selectOption(first.canvasId); await page.locator('.canvas-title-text').filter({ hasText: 'Architecture' }).waitFor();
+  await page.locator('.canvas-rich-editor .tiptap p').first().click(); await page.keyboard.press('End'); await page.keyboard.type(' Edited directly.');
+  await waitFor(async () => (await fix.request('/api/chats/' + chat.id + '/canvases/' + first.canvasId)).content.includes('Edited directly.'));
+  await page.getByRole('button', { name: 'Save to Notes', exact: true }).click(); await page.getByRole('button', { name: 'Open in Notes', exact: true }).waitFor();
+  const linked = await fix.request('/api/chats/' + chat.id + '/canvases/' + first.canvasId); assert.ok(linked.noteId); assert.equal(linked.title, 'Architecture');
+  await page.getByRole('button', { name: 'Copy Markdown', exact: true }).click(); assert.equal((await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, '\n'), linked.content.replace(/\r\n/g, '\n'));
+  await page.locator('.canvas-rich-editor .tiptap p').first().click(); await page.keyboard.press('End'); await page.keyboard.type(' Pending local edit.');
+  await fix.request('/api/resources/save', { workspaceId: linked.workspaceId, path: linked.path, revision: linked.revision, content: linked.content + '\nExternal edit before debounce.\n' });
+  await page.locator('.canvas-conflict').waitFor(); assert.match(await page.locator('.canvas-rich-editor .tiptap').textContent(), /Pending local edit/); assert.doesNotMatch((await fix.app.resources.read(linked)).content, /Pending local edit/);
+  await page.getByRole('button', { name: 'Load disk version', exact: true }).click(); await page.locator('.canvas-conflict').waitFor({ state: 'hidden' }); assert.match(await page.locator('.canvas-rich-editor .tiptap').textContent(), /External edit before debounce/);
+  await page.getByRole('button', { name: 'Close Canvas', exact: true }).click(); await page.locator('.chat-canvas').waitFor({ state: 'hidden' }); await page.reload(); assert.equal(await page.locator('.chat-canvas:visible').count(), 0);
+  await page.getByLabel('Conversation Canvases').selectOption(first.canvasId); await page.locator('.canvas-title-text').filter({ hasText: 'Architecture' }).waitFor();
+  await page.reload(); await page.locator('.canvas-title-text').filter({ hasText: 'Architecture' }).waitFor();
+  const list = await fix.request('/api/chats/' + chat.id + '/canvases'); assert.equal(list.canvases.length, 2);
+  await page.locator('.chat-canvas').getByRole('button', { name: 'Source', exact: true }).click(); await waitFor(async () => (await fix.request('/api/chats/' + chat.id + '/canvases/' + first.canvasId)).uiState.sourceMode); await page.reload(); await page.getByLabel('Canvas Markdown source', { exact: true }).waitFor();
+  await page.locator('.chat-canvas').getByRole('button', { name: 'Formatted', exact: true }).click(); await page.locator('.canvas-rich-editor .tiptap').waitFor();
+  const raw = 'print("safe <script> text")\n';
+  await page.evaluate(async raw => { const { markdown } = await import('/markdown.js'); const host = document.createElement('div'); host.id = 'test-code'; host.append(markdown('```python\n' + raw + '```')); document.body.append(host); }, raw);
+  assert.match(await page.locator('#test-code .code-header').textContent(), /Python · 1 line/); await page.locator('#test-code .raw-copy').click(); assert.equal((await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, '\n'), raw.replace(/\n$/, ''));
+  assert.equal(await page.locator('#test-code [contenteditable=true]').count(), 0);
+  assert.deepEqual(errors, []);
+  await page.screenshot({ path: 'platform/logs/documents-canvas.png', animations: 'disabled' });
+  console.log('Documents browser passed: rendered editing, Markdown shortcuts, table/frontmatter/wiki/code preservation, independent multiple persistent Canvases, Save to Notes, exact copy, close/reopen/refresh, shared code display.');
+} catch (error) { console.log('TOAST', await page.locator('#toast').textContent()); await page.screenshot({ path: 'platform/logs/documents-failure.png' }).catch(() => {}); throw error; }
+finally { await browser.close(); await fix.close(); }

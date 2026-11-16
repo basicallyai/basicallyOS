@@ -1,0 +1,66 @@
+name: Downloadable releases
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            target: windows-x64
+          - runner: macos-15
+            target: macos-arm64
+          - runner: macos-15-intel
+            target: macos-x64
+          - runner: ubuntu-24.04
+            target: linux-x64
+          - runner: ubuntu-24.04-arm
+            target: linux-arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npm test
+      - run: python -m unittest discover -s platform -p "test_*.py"
+      - run: npm run package:desktop
+      - name: Verify relocated release with bundled Node
+        run: python platform/verify_release.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: basically-os-${{ matrix.target }}
+          path: |
+            releases/basically-os-*.zip
+            releases/basically-os-*.tar.gz
+            releases/*.sha256
+  publish:
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: basically-os-*
+          path: downloads
+      - name: Publish desktop assets only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          mkdir release
+          find downloads -name '*.sha256' -exec cat {} \; | sort > release/SHA256SUMS.txt
+          find downloads -type f \( -name 'basically-os-*.zip' -o -name 'basically-os-*.tar.gz' \) -exec cp {} release/ \;
+          cd release
+          sha256sum --check SHA256SUMS.txt
+          gh release create "$GITHUB_REF_NAME" basically-os-* SHA256SUMS.txt --generate-notes

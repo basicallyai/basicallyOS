@@ -1,0 +1,41 @@
+name: Product checks
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npm test
+      - run: npm run test:package
+      - run: python -m unittest discover -s platform -p "test_*.py"
+      - if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium
+      - if: runner.os == 'Linux'
+        run: npm run test:browser
+      - if: always() && runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-smoke
+          path: |
+            platform/logs/ui-*.png
+            platform/logs/knowledge-*.png
+            platform/logs/overhaul-*.png
+            platform/logs/unity-*.png
+            platform/logs/documents-*.png
+            platform/logs/editor-*.png
+            platform/logs/model-menu*.png

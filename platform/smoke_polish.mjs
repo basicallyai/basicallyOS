@@ -1,0 +1,52 @@
+import assert from 'node:assert/strict';
+import { chromium } from 'playwright';
+import { fixture, waitFor } from './tests/helpers.mjs';
+const fix = await fixture(), browser = await chromium.launch({ channel: process.platform === 'win32' ? 'msedge' : undefined, headless: true });
+const page = await browser.newPage({ viewport: { width: 1440, height: 960 } }), errors = []; page.on('pageerror', error => errors.push(error.message));
+const metadata = (upstreamProvider, rate) => ({ id: 'maker/exact', name: 'My exact model', contextWindow: rate === 2 ? 64000 : 32000, maxTokens: 2000, cost: rate == null ? null : { input: rate, output: rate * 4, cacheRead: null, cacheWrite: null }, tools: false, vision: false, reasoning: false, reasoningConfig: null, metadata: { source: 'https://openrouter.ai/api/v1/models/maker/exact/endpoints', provider: 'OpenRouter · ' + upstreamProvider, upstreamProvider, fetchedAt: Date.now(), missing: rate == null ? ['pricing'] : [] } });
+try {
+  await fix.request('/api/providers', { id: 'router', name: 'My router', api: 'openai-completions', baseUrl: 'https://openrouter.ai/api/v1', requiresKey: false, models: [{ ...metadata(null, 1), metadata: { source: 'https://openrouter.ai/api/v1/models', provider: 'OpenRouter', fetchedAt: Date.now(), manualFields: [] } }] });
+  await page.route('**/api/providers/metadata', async route => {
+    const body = route.request().postDataJSON();
+    if (body.upstreamProvider === 'slow/fp8') await new Promise(resolve => setTimeout(resolve, 700));
+    if (body.upstreamProvider === 'unknown') return route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ error: 'This provider is not advertised for this model.' }) });
+    const rate = body.upstreamProvider === 'slow/fp8' ? 99 : body.upstreamProvider === 'one/fp8' ? 2 : body.upstreamProvider === 'missing' ? null : 1;
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ model: metadata(body.upstreamProvider, rate), status: 'found' }) });
+  });
+  await page.goto(fix.app.url); await page.locator('#open-settings').click(); const form = page.locator('#settings-content .provider-editor');
+  const pin = form.locator('[name=upstreamProvider]'), inputRate = form.locator('[name=inputPrice]');
+  await form.locator('summary').filter({ hasText: 'Limits, capabilities' }).click();
+  await inputRate.fill('123');
+  await pin.fill('slow/fp8'); assert.equal(await inputRate.inputValue(), '', 'old/manual rates clear immediately on a route change');
+  await page.waitForTimeout(500); await pin.fill('one/fp8');
+  await waitFor(async () => await inputRate.inputValue() === '2'); await page.waitForTimeout(800); assert.equal(await inputRate.inputValue(), '2', 'late response from old route cannot overwrite current pricing');
+  assert.equal(await form.locator('[name=cacheReadPrice]').inputValue(), '');
+  assert.equal(await form.locator('[name=contextWindow]').inputValue(), '64000');
+  await form.getByRole('button', { name: 'Save connection', exact: true }).click();
+  await waitFor(() => fix.app.store.config.providers[0].models[0].upstreamProvider === 'one/fp8');
+  assert.equal(fix.app.store.config.providers[0].models[0].cost.input, 2);
+  await page.reload(); await page.locator('#open-settings').click();
+  assert.equal(await pin.inputValue(), 'one/fp8'); assert.equal(await inputRate.inputValue(), '2');
+  await pin.fill('unknown'); await form.locator('.metadata-status').filter({ hasText: 'not advertised' }).waitFor(); assert.equal(await inputRate.inputValue(), '', 'unknown provider never retains default or previous-provider rates');
+  await pin.fill('missing'); await form.locator('.metadata-status').filter({ hasText: 'Unavailable: pricing' }).waitFor(); assert.equal(await inputRate.inputValue(), '');
+  await pin.fill('one/fp8'); await form.getByRole('button', { name: 'Save connection', exact: true }).click();
+  await waitFor(() => fix.app.store.config.providers[0].models[0].cost?.input === 2);
+  await page.locator('#settings-tabs [data-tab=memory]').click(); await page.getByText('Optional saved-memory deletion policy', { exact: true }).waitFor();
+  assert.equal(await page.getByLabel('Default memory retention days').isVisible(), false, 'chat recall is not presented as a retention cutoff');
+  await page.screenshot({ path: 'platform/logs/polish-memory.png' });
+  await page.locator('#settings-dialog [data-close]').click(); await page.locator('#nav-notes').click();
+  await page.getByRole('button', { name: 'Attach local folder', exact: true }).click();
+  await page.getByText('Enter a path manually', { exact: true }).click();
+  const space = await page.locator('.attach-manual form').evaluate(node => ({ margin: getComputedStyle(node).marginTop, gap: getComputedStyle(node).gap })); assert.equal(space.margin, '0px'); assert.equal(space.gap, '12px');
+  await page.screenshot({ path: 'platform/logs/polish-attach.png' });
+  await page.setViewportSize({ width: 380, height: 800 });
+  assert.equal(await page.locator('#info-dialog').evaluate(node => node.scrollWidth <= node.clientWidth + 1), true, 'attachment popup fits narrow windows');
+  await page.screenshot({ path: 'platform/logs/polish-attach-mobile.png' });
+  await page.locator('#info-dialog [data-close]').click(); await page.setViewportSize({ width: 1440, height: 960 }); await page.locator('#nav-chat').click(); await page.setViewportSize({ width: 380, height: 800 });
+  const composer = page.locator('.composer-rich .tiptap'); await composer.fill('A little more breathing room.');
+  if (await page.locator('#close-sidebar').isVisible()) await page.locator('#close-sidebar').click(); await page.mouse.move(300, 600); await page.waitForTimeout(180);
+  await page.screenshot({ path: 'platform/logs/polish-composer-mobile.png' });
+  assert.deepEqual(errors, []);
+  console.log('Polish browser passed: route-specific metadata reset/races, saved provider and rates, unknown pricing, memory controls, attachment spacing and narrow-window fitting.');
+} catch (error) { await page.screenshot({ path: 'platform/logs/polish-failure.png', fullPage: true }).catch(() => {}); throw error; }
+finally { await browser.close(); await fix.close(); }

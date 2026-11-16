@@ -1,0 +1,104 @@
+{
+  "name": "@basicallyai/bos",
+  "version": "3.2.0",
+  "description": "A local-first AI workspace with conversations, authorized projects, Markdown notes and agent-managed memory.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/basicallyai/basicallyOS.git"
+  },
+  "homepage": "https://github.com/basicallyai/basicallyOS#readme",
+  "bugs": {
+    "url": "https://github.com/basicallyai/basicallyOS/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "bin": {
+    "basically-os": "bin/basically-os.mjs"
+  },
+  "files": [
+    "bin/",
+    "platform/web/",
+    "platform/assets/",
+    "platform/start.mjs",
+    "platform/server.mjs",
+    "platform/paths.mjs",
+    "platform/browser.mjs",
+    "platform/store.mjs",
+    "platform/providers.mjs",
+    "platform/model-catalog.mjs",
+    "platform/runtime.mjs",
+    "platform/tools.mjs",
+    "platform/icons.mjs",
+    "platform/memory.mjs",
+    "platform/memories.mjs",
+    "platform/resources.mjs",
+    "platform/notes.mjs",
+    "platform/canvases.mjs",
+    "platform/web-search.mjs",
+    "platform/browser-research.mjs",
+    "platform/folder-picker.mjs",
+    "platform/semantic.mjs",
+    "platform/resource-tools.mjs",
+    "platform/resource-routes.mjs",
+    "platform/ARCHITECTURE.md",
+    "platform/exchange.mjs",
+    "platform/model-upload.mjs",
+    "platform/local-worker.mjs",
+    "platform/model_runtime.py",
+    "platform/local_backends.py",
+    "platform/setup_models.py",
+    "platform/requirements.txt",
+    "DISTRIBUTION.md"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node platform/start.mjs",
+    "build": "node platform/build.mjs",
+    "test": "node --test --test-concurrency=1 platform/tests/*.test.mjs",
+    "test:browser": "node platform/smoke_browser.mjs && node platform/smoke_knowledge.mjs && node platform/smoke_overhaul.mjs && node platform/smoke_unity.mjs && node platform/smoke_documents.mjs && node platform/smoke_editor.mjs && node platform/smoke_workspace_tools.mjs && node platform/smoke_model_menu.mjs && node platform/smoke_polish.mjs && node platform/smoke_local_models.mjs",
+    "test:documents": "node platform/smoke_documents.mjs && node platform/smoke_editor.mjs && node platform/smoke_workspace_tools.mjs",
+    "test:models": "node platform/smoke_model_menu.mjs",
+    "test:polish": "node platform/smoke_polish.mjs",
+    "test:local": "node platform/smoke_local_inference.mjs",
+    "test:knowledge": "node platform/smoke_knowledge.mjs",
+    "test:overhaul": "node platform/smoke_overhaul.mjs",
+    "test:unity": "node platform/smoke_unity.mjs",
+    "package:desktop": "python platform/package_releases.py",
+    "package:npm": "npm pack --pack-destination releases",
+    "test:package": "node platform/test_package.mjs",
+    "prepack": "node platform/build.mjs"
+  },
+  "dependencies": {
+    "@earendil-works/pi-agent-core": "1.5.2",
+    "@earendil-works/pi-ai": "1.5.2",
+    "@highlightjs/cdn-assets": "11.12.0",
+    "@mozilla/readability": "0.6.0",
+    "busboy": "1.6.0",
+    "diff": "9.0.0",
+    "dompurify": "3.4.17",
+    "ipaddr.js": "2.5.0",
+    "katex": "0.19.1",
+    "linkedom": "0.18.15",
+    "lucide": "1.72.0",
+    "marked": "18.2.0",
+    "puppeteer-core": "25.17.0"
+  },
+  "devDependencies": {
+    "@tiptap/core": "3.34.0",
+    "@tiptap/extension-code-block-lowlight": "3.34.0",
+    "@tiptap/extension-table": "3.34.0",
+    "@tiptap/extension-task-item": "3.34.0",
+    "@tiptap/extension-task-list": "3.34.0",
+    "@tiptap/markdown": "3.34.0",
+    "@tiptap/pm": "3.34.0",
+    "@tiptap/starter-kit": "3.34.0",
+    "esbuild": "0.28.2",
+    "lowlight": "3.3.0",
+    "playwright": "1.61.1"
+  }
+}
