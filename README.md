@@ -23,17 +23,17 @@ Build and try the actual package locally, without publishing:
 
 ```sh
 npm run package:npm
-npm install --global ./releases/basicallyai-bos-3.3.0.tgz
+npm install --global ./releases/basicallyai-bos-3.3.1.tgz
 basically-os --no-open
 ```
 
 Or run the tarball through npx:
 
 ```sh
-npx --yes --package ./releases/basicallyai-bos-3.3.0.tgz basically-os --no-open
+npx --yes --package ./releases/basicallyai-bos-3.3.1.tgz basically-os --no-open
 ```
 
-The npm package is **`@basicallyai/bos`**; its executable is **`basically-os`**. Once this release is available on npm, use:
+The npm package is **`@basicallyai/bos`**; its executable is **`basically-os`**. It is published on the public npm registry; 3.3.1 was verified with a clean-cache install and `npx` run:
 
 ```sh
 npx @basicallyai/bos

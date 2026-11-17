@@ -13,21 +13,21 @@ npm run test:package
 npm run package:npm
 ```
 
-The tarball appears as `releases/basicallyai-bos-3.3.0.tgz`. Try it without publishing:
+The tarball appears as `releases/basicallyai-bos-3.3.1.tgz`. Try it without publishing:
 
 ```sh
-npm install --global ./releases/basicallyai-bos-3.3.0.tgz
+npm install --global ./releases/basicallyai-bos-3.3.1.tgz
 basically-os --help
 basically-os --no-open
 ```
 
 ```sh
-npx --yes --package ./releases/basicallyai-bos-3.3.0.tgz basically-os --no-open
+npx --yes --package ./releases/basicallyai-bos-3.3.1.tgz basically-os --no-open
 ```
 
 The npm package checks actually install and run the tarball, including its prebundled Tiptap/ProseMirror editor and third-party licenses, Canvas/code/KaTeX/font assets and hoisted runtime dependencies. Build-only editor dependencies are not installed at runtime. They also verify empty model setup, authentication, persistent standalone notes, independent Canvas creation and Save to Notes, opt-in search setup, paths containing spaces, persistent user-data directories, and absence of private/development files. They do not publish anything or call paid models.
 
-Publication is a separate owner-authorized operation: authenticate with npm, ensure the package name is owned/available and review `npm pack --dry-run`, then publish the reviewed tarball. The configured scoped package is `@basicallyai/bos`, with public npm access metadata; that setting does not change GitHub visibility or publish anything. Until registry publication is separately verified, do not advertise `npx @basicallyai/bos` as a working registry download of this build.
+Publication is a separate owner-authorized operation: authenticate with npm, ensure the package name is owned/available and review `npm pack --dry-run`, then publish the reviewed tarball. The configured scoped package is `@basicallyai/bos`, with public npm access metadata; that setting does not change GitHub visibility or publish anything. `@basicallyai/bos` is published publicly under Apache-2.0; 3.3.0 was verified by a clean-cache install and `npx` run, and each later version is verified the same way. It was verified by a clean-cache global install and `npx @basicallyai/bos` startup/restart against the public registry, and the published integrity hash matched the reviewed local tarball. npm can report a successful upload (HTTP 202, "being processed") while its package index and tarball are still replicating: verification must wait until both `https://registry.npmjs.org/@basicallyai%2fbos` and the version tarball URL return 200. Publishing a later version repeats the same owner-2FA and verification steps; no credentials are stored in this repository.
 
 Installed/npm/npx executions use the OS user-data directory, not the installation or package cache. `--data-dir` overrides it; `--workspace-dir` and `--models-dir` can independently choose file locations. Source installations keep their existing project-local directories. Use `basically-os --help` for supported flags.
 
