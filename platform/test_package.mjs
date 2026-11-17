@@ -86,6 +86,8 @@ try {
   const metadata = JSON.parse(await readFile(join(installed, 'package.json'), 'utf8'));
   assert.equal(metadata.name, '@basicallyai/bos'); assert.equal(metadata.license, 'Apache-2.0');
   assert.equal(metadata.repository.url, 'git+https://github.com/basicallyai/basicallyOS.git');
+  assert.equal(metadata.homepage, 'https://basicallyai.co/');
+  assert.equal(metadata.bugs.email, 'hello@basicallyai.co');
   assert.equal(metadata.bin['basically-os'], 'bin/basically-os.mjs'); assert.ok(!existsSync(join(installed, 'node_modules/playwright')));
   await access(process.platform === 'win32' ? join(prefix, 'basically-os.cmd') : join(prefix, 'bin/basically-os'));
   await smoke([join(installed, 'bin/basically-os.mjs')], 'npm global install');

@@ -4,6 +4,8 @@ A local-first AI workspace with your own models, private conversations, ordinary
 
 The runtime uses only Pi Agent Core + Pi AI npm packages—not a repository checkout or coding-agent CLI. Icons are from [Lucide](https://lucide.dev), served locally.
 
+Project home: [basicallyai.co](https://basicallyai.co/) · npm: [`@basicallyai/bos`](https://www.npmjs.com/package/@basicallyai/bos) · contact: [hello@basicallyai.co](mailto:hello@basicallyai.co).
+
 ## Run from source
 
 Requires **Node.js 24+**. Python is optional and unnecessary for API connections.

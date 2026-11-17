@@ -7,9 +7,10 @@
     "type": "git",
     "url": "git+https://github.com/basicallyai/basicallyOS.git"
   },
-  "homepage": "https://github.com/basicallyai/basicallyOS#readme",
+  "homepage": "https://basicallyai.co/",
   "bugs": {
-    "url": "https://github.com/basicallyai/basicallyOS/issues"
+    "url": "https://github.com/basicallyai/basicallyOS/issues",
+    "email": "hello@basicallyai.co"
   },
   "publishConfig": {
     "access": "public"
