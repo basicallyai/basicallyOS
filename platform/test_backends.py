@@ -26,7 +26,7 @@ class FormatTests(unittest.TestCase):
         row = inspect_model(self.folder)
         self.assertEqual(row['format'], 'transformers')
         self.assertIsNone(row['problem'])
-        self.assertEqual(ModelRuntime(self.root).model_path('transformers'), self.folder)
+        self.assertEqual(ModelRuntime(self.root).model_path('transformers'), self.folder.resolve())
 
     def test_gguf_files_and_folders_are_rejected(self):
         gguf = self.root / 'chat.gguf'
