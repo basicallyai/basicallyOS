@@ -56,6 +56,15 @@ test('Snap Firefox uses distinct private temporary profiles on retries and remov
   finally { await reader.close(); await rm(base, { recursive: true, force: true }); }
 });
 
+test('cold-start timeouts retry safely, while sandbox failures and real limits are never retried', async () => {
+  const results = [];
+  for (const [message, family] of [['Timed out after 30000 ms while waiting for the WS endpoint URL to appear in stdout!', 'chrome'], ['session.new timed out', 'firefox'], ['Failed to launch the browser process:  Code: null', 'chrome']]) {
+    let launches = 0; const reader = new InstalledBrowserReader({ browser: () => ({ family, name: 'Fixture', executablePath: process.execPath }), fetch: async () => { throw Error('No page may be requested during startup'); }, launch: async () => { launches++; throw Error(message); } });
+    await assert.rejects(reader.read('https://example.com/'), /WS endpoint|session\.new|Failed to launch/); results.push(launches); await reader.close();
+  }
+  assert.deepEqual(results, [3, 3, 1], 'startup timeouts retry up to three attempts; sandbox configuration errors fail immediately');
+});
+
 test('cancelled late browser launches are stopped before their temporary profile is deleted', async () => {
   const base = await mkdtemp(join(tmpdir(), 'basically delayed profile ')), controller = new AbortController(); let path, finish, stopped = false;
   const reader = new InstalledBrowserReader({ browser: () => ({ family: 'firefox', name: 'Fixture', executablePath: process.execPath }), profileBase: () => base, fetch: async () => { throw Error('No fetch'); }, launch: async options => { path = options.userDataDir; return new Promise(resolve => { finish = () => resolve({ close: async () => { await access(path); stopped = true; }, process: () => null }); }); } });

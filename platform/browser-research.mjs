@@ -46,22 +46,28 @@ export class InstalledBrowserReader {
     const url = new URL(input); if (url.protocol !== 'https:' || url.username || url.password || url.port && url.port !== '443') throw new Error('Web tools accept public HTTPS URLs on port 443 only.');
     const selected = this.browser(); if (!selected || !existsSync(selected.executablePath)) throw new Error('No supported installed browser was found. Install or select Firefox, Chrome, Edge, Brave or Chromium in Web browsing settings. No browser is downloaded automatically.');
     const controller = new AbortController();
-    signal = AbortSignal.any([...(signal ? [signal] : []), controller.signal, AbortSignal.timeout(60000)]); signal.throwIfAborted(); this.controllers.add(controller);
+    // Bounded even with one cold-start retry; never an unbounded wait.
+    signal = AbortSignal.any([...(signal ? [signal] : []), controller.signal, AbortSignal.timeout(75000)]); signal.throwIfAborted(); this.controllers.add(controller);
     let browser, failure, pageResult, profileDir;
     const cancel = () => { if (browser) stopBrowser(browser).catch(() => {}); };
     signal.addEventListener('abort', cancel, { once: true });
     try {
       const operation = (async () => { try {
       const base = this.profileBase(selected);
-      const launchOptions = { browser: selected.family, executablePath: selected.executablePath, headless: true, timeout: 20000, protocolTimeout: 25000, args: selected.family === 'chrome' ? ['--disable-background-networking', '--disable-component-update', '--disable-sync', '--no-first-run'] : [], extraPrefsFirefox: { 'network.prefetch-next': false, 'network.dns.disablePrefetch': true, 'network.http.speculative-parallel-limit': 0, 'dom.serviceWorkers.enabled': false, 'media.peerconnection.enabled': false } };
-      // Firefox can lose its initial BiDi handshake under startup contention. Retrying
-      // with a fresh profile is safe: no webpage or search has been requested yet.
+      const launchOptions = { browser: selected.family, executablePath: selected.executablePath, headless: true, timeout: 30000, protocolTimeout: 25000, args: selected.family === 'chrome' ? ['--disable-background-networking', '--disable-component-update', '--disable-sync', '--no-first-run'] : [], extraPrefsFirefox: { 'network.prefetch-next': false, 'network.dns.disablePrefetch': true, 'network.http.speculative-parallel-limit': 0, 'dom.serviceWorkers.enabled': false, 'media.peerconnection.enabled': false } };
+      // Cold browser startup can be slow or lose its initial handshake under contention
+      // (Firefox BiDi `session.new`, Chromium/Edge WS endpoint). Retrying a launch that
+      // never produced a browser is safe: no webpage or search has been requested yet.
+      // Sandbox/permission failures are not startup timeouts and are never retried.
+      // (The earlier hosted-runner sandbox failure surfaced as "Failed to launch the browser
+      // process", which is a configuration error, not slowness, so it is deliberately excluded.)
+      const startupTimeout = /session\.new timed out|waiting for the WS endpoint URL to appear/i;
       for (let attempt = 0; !browser; attempt++) {
         try { if (base) profileDir = await mkdtemp(join(base, 'basically-research-')); browser = await this.launch(profileDir ? { ...launchOptions, userDataDir: profileDir } : launchOptions); }
         catch (error) {
           if (profileDir) { await rm(profileDir, { recursive: true, force: true, maxRetries: 6, retryDelay: 100 }); profileDir = null; }
-          if (selected.family !== 'firefox' || attempt >= 2 || signal.aborted || !/session\.new timed out/i.test(error.message)) throw error;
-          await new Promise(resolve => setTimeout(resolve, 300));
+          if (attempt >= 2 || signal.aborted || !startupTimeout.test(error.message)) throw error;
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
       }
       this.active.add(browser); if (signal.aborted) { await stopBrowser(browser); this.active.delete(browser); signal.throwIfAborted(); } const userAgent = await browser.userAgent(), page = await browser.newPage(); if (selected.family !== 'firefox') await page.setJavaScriptEnabled(false); await page.setRequestInterception(true);
