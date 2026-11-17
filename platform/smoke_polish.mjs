@@ -31,6 +31,14 @@ try {
   await pin.fill('missing'); await form.locator('.metadata-status').filter({ hasText: 'Unavailable: pricing' }).waitFor(); assert.equal(await inputRate.inputValue(), '');
   await pin.fill('one/fp8'); await form.getByRole('button', { name: 'Save connection', exact: true }).click();
   await waitFor(() => fix.app.store.config.providers[0].models[0].cost?.input === 2);
+  // Manual effort edits are opt-ins, survive metadata refresh, and use this endpoint's format.
+  await waitFor(async () => await form.getByRole('button', { name: 'Save connection', exact: true }).isEnabled());
+  await form.locator('summary').filter({ hasText: 'Limits, capabilities' }).click();
+  const levels = form.locator('[name=reasoningLevels]'), format = form.locator('[name=reasoningFormat]');
+  await levels.fill('off, minimal, low, medium, high, xhigh, max'); assert.equal(await format.inputValue(), 'openrouter'); assert.equal(await form.locator('[name=reasoning]').isChecked(), true);
+  await format.selectOption('none'); await form.getByRole('button', { name: 'Save connection', exact: true }).click(); await form.locator('.form-message').filter({ hasText: 'have not been discarded' }).waitFor(); assert.match(await levels.inputValue(), /max/);
+  await format.selectOption('openrouter'); await form.getByRole('button', { name: 'Save connection', exact: true }).click(); await waitFor(() => fix.app.store.config.providers[0].models[0].reasoningConfig?.levels.length === 7);
+  await page.reload(); await page.locator('#open-settings').click(); await form.locator('summary').filter({ hasText: 'Limits, capabilities' }).click(); assert.equal(await levels.inputValue(), 'off, minimal, low, medium, high, xhigh, max'); assert.equal(await format.inputValue(), 'openrouter');
   await page.locator('#settings-tabs [data-tab=memory]').click(); await page.getByText('Optional saved-memory deletion policy', { exact: true }).waitFor();
   assert.equal(await page.getByLabel('Default memory retention days').isVisible(), false, 'chat recall is not presented as a retention cutoff');
   await page.screenshot({ path: 'platform/logs/polish-memory.png' });

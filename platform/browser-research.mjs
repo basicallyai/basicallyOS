@@ -1,5 +1,7 @@
 /** Use an installed browser in a fresh temporary profile. Never connect to personal tabs/cookies. */
 import { existsSync } from 'node:fs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { join, delimiter } from 'node:path';
@@ -34,23 +36,30 @@ async function discoverBrowsers() {
 }
 async function stopBrowser(browser) { let timer; await Promise.race([browser.close().catch(() => {}), new Promise(resolve => { timer = setTimeout(() => { browser.process()?.kill('SIGKILL'); resolve(); }, 3000); })]).finally(() => clearTimeout(timer)); }
 async function abortable(task, signal) { let onAbort; const aborted = new Promise((_, reject) => { onAbort = () => reject(new Error('Browser research was cancelled or timed out.')); if (signal.aborted) onAbort(); else signal.addEventListener('abort', onAbort, { once: true }); }); return Promise.race([task, aborted]).finally(() => signal.removeEventListener('abort', onAbort)); }
+export function firefoxProfileBase(selected, { platform = process.platform, home = homedir(), exists = existsSync } = {}) {
+  const base = join(home, 'snap', 'firefox', 'common');
+  return selected.family === 'firefox' && platform === 'linux' && exists(base) ? base : null;
+}
 export class InstalledBrowserReader {
-  constructor({ fetch, browser, launch = options => puppeteer.launch(options) }) { Object.assign(this, { fetch, browser, launch }); this.active = new Set(); }
+  constructor({ fetch, browser, launch = options => puppeteer.launch(options), profileBase = firefoxProfileBase }) { Object.assign(this, { fetch, browser, launch, profileBase }); this.active = new Set(); this.controllers = new Set(); this.pending = new Set(); }
   async read(input, { signal } = {}) {
     const url = new URL(input); if (url.protocol !== 'https:' || url.username || url.password || url.port && url.port !== '443') throw new Error('Web tools accept public HTTPS URLs on port 443 only.');
     const selected = this.browser(); if (!selected || !existsSync(selected.executablePath)) throw new Error('No supported installed browser was found. Install or select Firefox, Chrome, Edge, Brave or Chromium in Web browsing settings. No browser is downloaded automatically.');
-    signal = AbortSignal.any([...(signal ? [signal] : []), AbortSignal.timeout(60000)]); signal.throwIfAborted();
-    let browser, failure, pageResult;
+    const controller = new AbortController();
+    signal = AbortSignal.any([...(signal ? [signal] : []), controller.signal, AbortSignal.timeout(60000)]); signal.throwIfAborted(); this.controllers.add(controller);
+    let browser, failure, pageResult, profileDir;
     const cancel = () => { if (browser) stopBrowser(browser).catch(() => {}); };
     signal.addEventListener('abort', cancel, { once: true });
     try {
-      const operation = (async () => {
+      const operation = (async () => { try {
+      const base = this.profileBase(selected);
       const launchOptions = { browser: selected.family, executablePath: selected.executablePath, headless: true, timeout: 20000, protocolTimeout: 25000, args: selected.family === 'chrome' ? ['--disable-background-networking', '--disable-component-update', '--disable-sync', '--no-first-run'] : [], extraPrefsFirefox: { 'network.prefetch-next': false, 'network.dns.disablePrefetch': true, 'network.http.speculative-parallel-limit': 0, 'dom.serviceWorkers.enabled': false, 'media.peerconnection.enabled': false } };
       // Firefox can lose its initial BiDi handshake under startup contention. Retrying
       // with a fresh profile is safe: no webpage or search has been requested yet.
       for (let attempt = 0; !browser; attempt++) {
-        try { browser = await this.launch(launchOptions); }
+        try { if (base) profileDir = await mkdtemp(join(base, 'basically-research-')); browser = await this.launch(profileDir ? { ...launchOptions, userDataDir: profileDir } : launchOptions); }
         catch (error) {
+          if (profileDir) { await rm(profileDir, { recursive: true, force: true, maxRetries: 6, retryDelay: 100 }); profileDir = null; }
           if (selected.family !== 'firefox' || attempt >= 2 || signal.aborted || !/session\.new timed out/i.test(error.message)) throw error;
           await new Promise(resolve => setTimeout(resolve, 300));
         }
@@ -71,9 +80,11 @@ export class InstalledBrowserReader {
       })().catch(error => { failure ||= error; request.abort('failed').catch(() => {}); }); });
       await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 30000 }); signal.throwIfAborted(); if (failure) throw failure; if (!pageResult) throw new Error('The installed browser did not return a webpage.');
       return { ...pageResult, text: /text\/plain/i.test(pageResult.type) ? pageResult.text : await page.content(), browser: selected.name };
-      })(); return await abortable(operation, signal);
+      } finally { if (browser) { this.active.delete(browser); await stopBrowser(browser); } if (profileDir) await rm(profileDir, { recursive: true, force: true, maxRetries: 6, retryDelay: 100 }); } })();
+      this.pending.add(operation); operation.then(() => this.pending.delete(operation), () => this.pending.delete(operation));
+      return await abortable(operation, signal);
     } catch (error) { if (signal.aborted) throw new Error('Browser research was cancelled or timed out.'); throw failure || new Error('Installed browser research failed: ' + error.message); }
-    finally { signal.removeEventListener('abort', cancel); if (browser) { this.active.delete(browser); await stopBrowser(browser); } }
+    finally { signal.removeEventListener('abort', cancel); this.controllers.delete(controller); }
   }
-  async close() { await Promise.all([...this.active].map(browser => stopBrowser(browser))); this.active.clear(); }
+  async close() { for (const controller of this.controllers) controller.abort(); await Promise.all([...this.active].map(browser => stopBrowser(browser))); await Promise.allSettled([...this.pending]); this.active.clear(); }
 }

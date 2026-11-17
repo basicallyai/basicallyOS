@@ -23,17 +23,26 @@ Build and try the actual package locally, without publishing:
 
 ```sh
 npm run package:npm
-npm install --global ./releases/basicallyai-bos-3.2.1.tgz
+npm install --global ./releases/basicallyai-bos-3.3.0.tgz
 basically-os --no-open
 ```
 
 Or run the tarball through npx:
 
 ```sh
-npx --yes --package ./releases/basicallyai-bos-3.2.1.tgz basically-os --no-open
+npx --yes --package ./releases/basicallyai-bos-3.3.0.tgz basically-os --no-open
 ```
 
-The configured npm package is **`@basicallyai/bos`**; its executable remains **`basically-os`**. After owner-authorized registry publication, the registry commands will be `npm install --global @basicallyai/bos` and `npx @basicallyai/bos`. **This source push does not publish the package to npm.** Use the local tarball commands above until registry publication has been separately verified.
+The npm package is **`@basicallyai/bos`**; its executable is **`basically-os`**. Once this release is available on npm, use:
+
+```sh
+npx @basicallyai/bos
+# Or install permanently:
+npm install --global @basicallyai/bos
+basically-os
+```
+
+Source pushes and tarball builds do not publish to npm. Registry publication and a clean registry-install check are separate release steps.
 
 ```text
 basically-os --help
@@ -82,7 +91,7 @@ One reusable GFM renderer handles user/assistant messages, thinking panels, Mark
 
 ### Thinking and activity
 
-Provider-exposed reasoning/summary blocks stream into a minimal inline **Thinking** disclosure in the basically orange brand colour: the arrow follows the label, reasoning text is orange, and the thin orange rule appears only while expanded. There is no enclosing box and no “provider-exposed content” caption. The panel stays separate from the final answer, keeps the user's expanded/collapsed choice, and remains available in history. Supported compatible reasoning fields and Responses events are normalized by Pi. **Hidden reasoning is never invented, inferred from answer text or extracted from encrypted signatures.** Models/endpoints that expose no reasoning show only real activity: connecting, working, writing, using tools or waiting for approval. The collapsed model control shows the exact configured display name and active effort on one line, with no provider line, raw ID or pricing metadata. Clicking it opens a compact menu anchored above the composer, not a modal: simple model rows with display names, a checkmark for the current model, and optional search for larger lists. **Effort is a separate menu item and submenu**, showing only levels the current model actually supports (hidden entirely when it supports none); the submenu flips sides when needed to stay in the window. **Manage models** opens the existing full settings interface for connections, IDs, prices and limits. Per-model effort choices persist and are sent in the actual request. The selector closes on selection, Escape, focus loss or an outside click, with arrow/Home/End keyboard navigation. OpenRouter normalized reasoning and OpenAI Completions/Responses effort use their respective payload formats; arbitrary compatible endpoints receive no guessed reasoning parameters.
+Provider-exposed reasoning/summary blocks stream into a minimal inline **Thinking** disclosure in the basically orange brand colour: the arrow follows the label, reasoning text is orange, and the thin orange rule appears only while expanded. There is no enclosing box and no “provider-exposed content” caption. The panel stays separate from the final answer, keeps the user's expanded/collapsed choice, and remains available in history. Supported compatible reasoning fields and Responses events are normalized by Pi. **Hidden reasoning is never invented, inferred from answer text or extracted from encrypted signatures.** Models/endpoints that expose no reasoning show only real activity: connecting, working, writing, using tools or waiting for approval. The collapsed model control shows the exact configured display name and active effort on one line, with no provider line, raw ID or pricing metadata. Clicking it opens a compact menu anchored above the composer, not a modal: simple model rows with display names, a checkmark for the current model, and optional search for larger lists. **Effort is a separate menu item and submenu**, showing only levels the current model actually supports (hidden entirely when it supports none); the submenu flips sides when needed to stay in the window. **Manage models** opens the existing full settings interface for connections, IDs, prices and limits. Per-model effort choices persist and are sent in the actual request. The selector closes on selection, Escape, focus loss or an outside click, with arrow/Home/End keyboard navigation. OpenRouter normalized reasoning and OpenAI Completions/Responses effort use their respective payload formats; arbitrary compatible endpoints receive no guessed reasoning parameters. `max` appears only when advertised or manually configured from verified model documentation. Typing supported levels enables reasoning and selects the matching OpenRouter/OpenAI format for the configured connection; an explicitly selected “none” with nonempty levels produces a validation message rather than silently deleting them.
 
 ## Notes and attached projects
 
@@ -122,7 +131,7 @@ Ask for “a Canvas explaining this architecture” or several documents at once
 
 Click the local Lucide **Globe** beside the composer to allow web access. When enabled it uses the same orange as Thinking text. **Permission is optional capability, not a demand:** the model may answer without browsing if search would not help. The permission persists per conversation, can be turned off, and imported conversations do not activate it.
 
-Search uses an **already-installed browser**, with no search API key or browser download. Automatic selection prefers the OS default when it is a supported browser (Chrome, Firefox, Edge, Brave or Chromium), otherwise another installed supported browser. **Settings → Preferences → Web browsing settings** lets you choose the browser and search engine (Bing by default, or DuckDuckGo). Safari and unrecognized browsers are not automated. Queries and visited URLs leave the computer; no API search-provider charge is added.
+Search uses an **already-installed browser**, with no search API key or browser download. Automatic selection prefers the OS default when it is a supported browser (Chrome, Firefox, Edge, Brave or Chromium), otherwise another installed supported browser. **Settings → Preferences → Web browsing settings** lets you choose the browser and search engine (Google by default for new profiles, plus Bing, Yahoo and DuckDuckGo; saved engine choices are preserved). Safari and unrecognized browsers are not automated. Linux Firefox installations with a Snap data directory use a fresh private temporary profile beneath it, not the personal browser profile. Failed launches, retries and cancellation clean up those temporary profiles. Queries and visited URLs leave the computer; no API search-provider charge is added.
 
 The browser runs headlessly with a fresh temporary profile—never your existing tabs, cookies, logins, extensions or personal browser history. Pages are read-only text research with site scripts and subresources blocked, not unrestricted interactive browsing. Browser startup failures, inaccessible pages and search-engine verification challenges are explicit errors; there is no CAPTCHA bypass or invented-result fallback. Previously saved API-search credentials remain private/inert during migration and are not used by the normal installed-browser workflow.
 

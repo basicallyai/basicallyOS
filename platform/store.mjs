@@ -62,8 +62,8 @@ export class Store {
       if (typeof next.instructions !== 'string' || next.instructions.length > 30000) throw new Error('Instructions must be at most 30,000 characters.');
       if (!Number.isInteger(next.maxTurns) || next.maxTurns < 1 || next.maxTurns > 64) throw new Error('Request limit must be between 1 and 64.');
       if (!['off', 'review', 'automatic'].includes(next.memoryMode) || !Number.isInteger(next.memoryRetentionDays) || next.memoryRetentionDays < 0 || next.memoryRetentionDays > 3650) throw new Error('Choose a valid memory mode and retention (0–3,650 days).');
-      if (!['off', 'minimal', 'low', 'medium', 'high'].includes(next.reasoningLevel)) throw new Error('Choose a valid reasoning effort.');
-      if (!next.reasoningOverrides || typeof next.reasoningOverrides !== 'object' || Array.isArray(next.reasoningOverrides) || Object.entries(next.reasoningOverrides).length > 500 || Object.entries(next.reasoningOverrides).some(([key, level]) => key.length > 400 || !['off', 'minimal', 'low', 'medium', 'high', 'xhigh'].includes(level))) throw new Error('Invalid per-model reasoning preferences.');
+      if (!['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(next.reasoningLevel)) throw new Error('Choose a valid reasoning effort.');
+      if (!next.reasoningOverrides || typeof next.reasoningOverrides !== 'object' || Array.isArray(next.reasoningOverrides) || Object.entries(next.reasoningOverrides).length > 500 || Object.entries(next.reasoningOverrides).some(([key, level]) => key.length > 400 || !['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(level))) throw new Error('Invalid per-model reasoning preferences.');
       await atomicJson(join(this.directory, 'settings.json'), next); this.settings = next;
       return next;
     });

@@ -7,19 +7,19 @@ import { installedBrowsers, InstalledBrowserReader } from '../browser-research.m
 const bing = '<html><body><ol><li class="b_algo"><h2><a href="https://nodejs.org/api/">Node documentation</a></h2><div class="b_caption"><p>Real extracted documentation.</p></div></li></ol></body></html>';
 test('installed-browser configuration needs no key, hides executable paths, preserves previous credentials inertly', async () => {
   const fix = await fixture(); try {
-    const status = await fix.request('/api/web-search'); assert.equal(status.provider, 'browser'); assert.equal(status.browser, 'auto'); assert.equal(status.engine, 'bing'); assert.ok(Array.isArray(status.browsers)); assert.equal(status.apiKey, undefined); assert.equal(JSON.stringify(status).includes('executablePath'), false);
+    const status = await fix.request('/api/web-search'); assert.equal(status.provider, 'browser'); assert.equal(status.browser, 'auto'); assert.equal(status.engine, 'google'); assert.ok(Array.isArray(status.browsers)); assert.equal(status.apiKey, undefined); assert.equal(JSON.stringify(status).includes('executablePath'), false);
     await writeFile(fix.app.web.file, JSON.stringify({ provider: 'brave', apiKey: 'keep-existing-private-key' }));
     await fix.app.web.initialize(); assert.equal(fix.app.web.status().provider, 'browser'); assert.equal(fix.app.web.config.credentials.brave, 'keep-existing-private-key');
     assert.equal(JSON.stringify(fix.app.web.status()).includes('keep-existing-private-key'), false);
     await fix.request('/api/web-search', { provider: 'browser', browser: 'auto', engine: 'duckduckgo' }, 'PUT'); assert.equal(fix.app.web.config.credentials.brave, 'keep-existing-private-key');
     await assert.rejects(fix.request('/api/web-search', { provider: 'browser', browser: 'not-installed', engine: 'bing' }, 'PUT'), /installed browser/);
-    await assert.rejects(fix.request('/api/web-search', { provider: 'browser', browser: 'auto', engine: 'fake' }, 'PUT'), /DuckDuckGo or Bing/);
+    await assert.rejects(fix.request('/api/web-search', { provider: 'browser', browser: 'auto', engine: 'fake' }, 'PUT'), /Google, Bing, Yahoo or DuckDuckGo/);
   } finally { await fix.close(); }
 });
 
 test('browser search returns parsed actual links/snippets, decodes result redirects, and discloses challenges', async () => {
   const fix = await fixture(); try {
-    let visited; fix.app.web.reader.read = async url => { visited = url; return { url, text: bing, browser: 'Fixture installed browser' }; };
+    fix.app.web.config.engine = 'bing'; let visited; fix.app.web.reader.read = async url => { visited = url; return { url, text: bing, browser: 'Fixture installed browser' }; };
     const result = await fix.app.web.search('Node docs'); assert.equal(visited, 'https://www.bing.com/search?q=Node%20docs'); assert.equal(result.sources[0].url, 'https://nodejs.org/api/'); assert.match(result.sources[0].excerpt, /Real extracted/); assert.equal(result.untrusted, true);
     fix.app.web.config.engine = 'duckduckgo'; fix.app.web.reader.read = async url => ({ url, text: '<div class="result"><a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fnodejs.org%2F">Node</a><p class="result__snippet">Snippet</p></div>', browser: 'Fixture' });
     assert.equal((await fix.app.web.search('Node')).sources[0].url, 'https://nodejs.org/');

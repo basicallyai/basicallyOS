@@ -307,7 +307,7 @@ async function webSearchSettings() {
   const status = await api('/web-search');
   const mode = el('select', { 'aria-label': 'Web search method' }, el('option', { value: 'browser' }, 'Local browser (default)'), el('option', { value: 'api' }, 'Search API (optional)')); mode.value = status.provider === 'browser' ? 'browser' : 'api';
   const browser = el('select', { 'aria-label': 'Installed browser' }, el('option', { value: 'auto' }, 'Automatic — prefer the default supported browser'), ...(status.browsers || []).map(row => el('option', { value: row.id }, row.name))); browser.value = status.browser === 'auto' || status.browsers?.some(row => row.id === status.browser) ? status.browser : 'auto';
-  const engine = el('select', { 'aria-label': 'Search engine' }, el('option', { value: 'duckduckgo' }, 'DuckDuckGo'), el('option', { value: 'bing' }, 'Bing')); engine.value = status.engine || 'bing';
+  const engine = el('select', { 'aria-label': 'Search engine' }, el('option', { value: 'google' }, 'Google'), el('option', { value: 'bing' }, 'Bing'), el('option', { value: 'yahoo' }, 'Yahoo'), el('option', { value: 'duckduckgo' }, 'DuckDuckGo')); engine.value = status.engine || 'google';
   const provider = el('select', { 'aria-label': 'Search API provider' }, el('option', { value: 'brave' }, 'Brave Search'), el('option', { value: 'tavily' }, 'Tavily')); provider.value = status.apiProvider || 'brave';
   const key = el('input', { type: 'password', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Search API key' }), clearKey = el('input', { type: 'checkbox', 'aria-label': 'Remove saved search API key' });
   const keyStatus = el('p', { class: 'help', role: 'status' });
@@ -518,12 +518,22 @@ function modelRow(model = {}, connection) {
   row.append(el('div', { class: 'model-row-main' }, field('Exact model ID', 'modelId', model.id, { placeholder: 'Enter the exact model ID', required: '' }), field('Display name', 'modelName', model.name, { placeholder: 'Optional label' }), iconButton('close', 'Remove model', () => row.remove())));
   const cost = model.cost;
   row.append(el('div', { class: 'model-routing' }, field('Exact upstream provider (optional · OpenRouter)', 'upstreamProvider', model.upstreamProvider, { placeholder: 'Provider name or endpoint tag; blank uses automatic routing', maxlength: 120 }), el('p', { class: 'help' }, 'Pins this model to that provider with no fallback. Changing it retrieves that endpoint’s limits and token prices; unavailable prices stay unknown. Other APIs use their connection endpoint. Past billed usage is never rewritten.')));
+  const formatNode = selectField('Documented reasoning API', 'reasoningFormat', model.reasoningConfig?.format || 'none', [['none', 'No configurable reasoning advertised'], ['openai', 'OpenAI reasoning effort'], ['openrouter', 'OpenRouter normalized reasoning']]);
+  const levelsNode = field('Supported reasoning levels (comma-separated)', 'reasoningLevels', model.reasoningConfig?.levels.join(', '), { placeholder: 'Only documented levels: e.g. low, medium, high, max' });
+  levelsNode.querySelector('input').addEventListener('input', event => {
+    if (!event.target.value.trim()) return;
+    const format = formatNode.querySelector('select');
+    if (format.value === 'none') {
+      let router = false; try { router = new URL(connection?.().baseUrl).hostname === 'openrouter.ai'; } catch {}
+      format.value = router ? 'openrouter' : 'openai'; format.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    const enabled = row.querySelector('[name=reasoning]'); if (!enabled.checked) { enabled.checked = true; enabled.dispatchEvent(new Event('input', { bubbles: true })); }
+  });
   row.append(el('details', { ...(model.id && (!model.contextWindow || !model.maxTokens) ? { open: '' } : {}) }, el('summary', {}, 'Limits, capabilities & pricing'), el('div', { class: 'model-advanced' },
     field('Context window (tokens)', 'contextWindow', model.contextWindow, { type: 'number', min: 256, max: 10000000, placeholder: 'Unavailable — enter verified limit' }),
     field('Output limit per request', 'maxTokens', model.maxTokens, { type: 'number', min: 1, max: 10000000, placeholder: 'Unavailable — enter verified limit' }),
     el('div', { class: 'capabilities' }, check('Enable tool calling', 'tools', model.tools === true), check('Images / vision', 'vision', model.vision), check('Reasoning model', 'reasoning', model.reasoning)),
-    selectField('Documented reasoning API', 'reasoningFormat', model.reasoningConfig?.format || 'none', [['none', 'No configurable reasoning advertised'], ['openai', 'OpenAI reasoning effort'], ['openrouter', 'OpenRouter normalized reasoning']]),
-    field('Supported reasoning levels (comma-separated)', 'reasoningLevels', model.reasoningConfig?.levels.join(', '), { placeholder: 'Only documented levels: e.g. low, medium, high' }),
+    formatNode, levelsNode,
     el('p', { class: 'pricing-description' }, 'USD per 1M tokens. Unavailable rates stay blank, including cache prices. Usage without the required rates remains unpriced. Capability toggles are explicit opt-ins; confirm support with your endpoint.'),
     field('Input · $ / 1M', 'inputPrice', cost?.input, { type: 'number', min: 0, step: 'any', placeholder: 'Unknown' }),
     field('Output · $ / 1M', 'outputPrice', cost?.output, { type: 'number', min: 0, step: 'any', placeholder: 'Unknown' }),
@@ -536,6 +546,7 @@ function readModelRow(row) {
   const value = name => row.querySelector(`[name=${name}]`).value;
   const input = value('inputPrice'), output = value('outputPrice'), read = value('cacheReadPrice'), write = value('cacheWritePrice');
   const number = text => text === '' ? null : Number(text), format = value('reasoningFormat'), levels = value('reasoningLevels').split(',').map(level => level.trim()).filter(Boolean);
+  if (format === 'none' && levels.length) throw new Error('Choose a documented reasoning API for the entered levels, or clear the levels. They have not been discarded.');
   return { id: value('modelId'), name: value('modelName'), upstreamProvider: value('upstreamProvider').trim() || null, contextWindow: number(value('contextWindow')), maxTokens: number(value('maxTokens')), metadata: row.source.metadata ? { ...row.source.metadata, manualFields: [...(row.manualFields || [])] } : null, capabilities: row.source.capabilities,
     reasoningConfig: format === 'none' ? null : { format, levels },
     tools: row.querySelector('[name=tools]').checked, vision: row.querySelector('[name=vision]').checked, reasoning: row.querySelector('[name=reasoning]').checked,

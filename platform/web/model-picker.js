@@ -1,8 +1,8 @@
-const LABELS = { off: 'Off', minimal: 'Minimal', low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra high' };
+const LABELS = { off: 'Off', minimal: 'Minimal', low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra high', max: 'Max' };
 export const levelLabel = level => LABELS[level] || level[0].toUpperCase() + level.slice(1);
 export function reasoningKey(provider, model) { return provider.id + '/' + model.id; }
 export function effortFor(model, settings, provider) {
-  if (!model.reasoningConfig?.levels?.length) return null;
+  if (!model.reasoning || !model.reasoningConfig?.levels?.length) return null;
   const levels = model.reasoningConfig.levels, preferred = settings.reasoningOverrides?.[reasoningKey(provider, model)] || settings.reasoningLevel;
   return levels.includes(preferred) ? preferred : levels[0];
 }
@@ -18,7 +18,7 @@ export function modelMenu({ trigger, providers, selection, settings, choose, set
   const getSettings = () => typeof settings === 'function' ? settings() : settings;
   const all = () => getProviders().flatMap(provider => provider.models.map(model => ({ provider, model })));
   const selectedRow = () => { const active = getSelection(); return all().find(row => row.provider.id === active?.provider && row.model.id === active?.model) || null; };
-  const levelsFor = row => row?.model.reasoningConfig?.levels?.length ? row.model.reasoningConfig.levels : [];
+  const levelsFor = row => row?.model.reasoning && row.model.reasoningConfig?.levels?.length ? row.model.reasoningConfig.levels : [];
   const rowNodes = () => [...(list?.querySelectorAll('.model-option') || [])];
   const menuNodes = () => [...(root?.querySelectorAll('[role=menuitem],[role=menuitemradio]') || [])].filter(node => !node.hidden && !node.disabled);
 

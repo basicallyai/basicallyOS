@@ -21,7 +21,7 @@ function runNpm(args, cwd = directory) {
   return new Promise((accept, reject) => {
     const child = spawn(process.execPath, [npmCli, ...args], { cwd, windowsHide: true, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '', errors = '';
-    const timer = setTimeout(() => { stop(child); reject(new Error('npm command timed out: ' + args[0])); }, 180000);
+    const timer = setTimeout(() => { stop(child); reject(new Error('npm command timed out: ' + args[0] + '\n' + errors + '\n' + output)); }, args[0] === 'install' ? 600000 : 180000);
     child.stdout.on('data', data => output += data); child.stderr.on('data', data => errors += data);
     child.once('error', error => { clearTimeout(timer); reject(error); });
     child.once('close', code => { clearTimeout(timer); code === 0 ? accept(output) : reject(new Error(`npm ${args[0]} failed (${code}):\n${errors}\n${output}`)); });

@@ -13,7 +13,7 @@ export function catalogModel(row, baseUrl, fetchedAt = Date.now()) {
   const cost = { input: rate(price.prompt ?? price.input), output: rate(price.completion ?? price.output), cacheRead: rate(price.input_cache_read ?? price.cacheRead ?? price.cached_input), cacheWrite: rate(price.input_cache_write ?? price.cacheWrite) };
   let reasoningConfig = null;
   const efforts = row.reasoning?.supported_efforts || row.reasoning_levels;
-  if (Array.isArray(efforts)) reasoningConfig = { format: router ? 'openrouter' : 'openai', levels: efforts.filter(level => ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'].includes(level)) };
+  if (Array.isArray(efforts)) reasoningConfig = { format: router ? 'openrouter' : 'openai', levels: efforts.filter(level => ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(level)) };
   // OpenRouter documents normalization of these effort values across its reasoning providers.
   else if (router && parameters?.includes('reasoning')) reasoningConfig = { format: 'openrouter', levels: ['low', 'medium', 'high'] };
   if (!reasoningConfig?.levels.length) reasoningConfig = null;
