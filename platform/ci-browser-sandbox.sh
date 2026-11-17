@@ -6,6 +6,13 @@ if [ "${CI:-}" != "true" ] || [ "$(uname -s)" != "Linux" ]; then
   echo "This setup is restricted to Linux CI runners." >&2
   exit 1
 fi
+# The hosted Edge image ships this helper without its required SUID permissions.
+# Restore the vendor sandbox helper; never fall back to --no-sandbox.
+sandbox=/opt/microsoft/msedge/msedge-sandbox
+if [ -f "$sandbox" ] && [ ! -L "$sandbox" ]; then
+  sudo chown root:root "$sandbox"
+  sudo chmod 4755 "$sandbox"
+fi
 if [ ! -e /sys/module/apparmor/parameters/enabled ]; then
   exit 0
 fi

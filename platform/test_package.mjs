@@ -1,7 +1,7 @@
 /** Validate the actual npm tarball, not just package metadata. Never publish or use paid APIs. */
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, access, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, access, rm, realpath } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
@@ -60,7 +60,7 @@ async function smoke(executableArgs, label) {
       assert.equal(response.status, 200, label + ': missing ' + path); assert.ok((await response.arrayBuffer()).byteLength > 100);
     }
     for (const path of ['/api/workspaces', '/api/memories', '/api/knowledge/layout']) { const response = await fetch(base + path, { headers: { Cookie: cookie } }); assert.equal(response.status, 200, label + ': missing ' + path); }
-    const notes = (await (await fetch(base + '/api/workspaces', { headers: { Cookie: cookie } })).json()).workspaces.find(row => row.managed === 'notes'); assert.ok(notes); assert.equal(notes.root, join(home, 'notes'));
+    const notes = (await (await fetch(base + '/api/workspaces', { headers: { Cookie: cookie } })).json()).workspaces.find(row => row.managed === 'notes'); assert.ok(notes); assert.equal(notes.root, await realpath(join(home, 'notes')));
     const saved = await fetch(base + '/api/resources/save', { method: 'POST', headers: { Cookie: cookie, Origin: base, 'Content-Type': 'application/json' }, body: JSON.stringify({ workspaceId: notes.id, path: 'Packaged.md', content: '# Packaged notes\n\n$$x^2$$', revision: null }) }); assert.equal(saved.status, 200); assert.match(await readFile(join(home, 'notes/Packaged.md'), 'utf8'), /Packaged notes/);
     const post = async (path, body) => { const response = await fetch(base + path, { method: 'POST', headers: { Cookie: cookie, Origin: base, 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); assert.equal(response.status < 300, true, path); return response.json(); };
     const chat = await post('/api/chats', {}), canvas = await post('/api/chats/' + chat.id + '/canvases', { title: 'Packaged Canvas', content: '# Standalone Canvas\n\nSaved by the installed app.' });
