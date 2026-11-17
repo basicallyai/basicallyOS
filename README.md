@@ -23,14 +23,14 @@ Build and try the actual package locally, without publishing:
 
 ```sh
 npm run package:npm
-npm install --global ./releases/basicallyai-bos-3.2.0.tgz
+npm install --global ./releases/basicallyai-bos-3.2.1.tgz
 basically-os --no-open
 ```
 
 Or run the tarball through npx:
 
 ```sh
-npx --yes --package ./releases/basicallyai-bos-3.2.0.tgz basically-os --no-open
+npx --yes --package ./releases/basicallyai-bos-3.2.1.tgz basically-os --no-open
 ```
 
 The configured npm package is **`@basicallyai/bos`**; its executable remains **`basically-os`**. After owner-authorized registry publication, the registry commands will be `npm install --global @basicallyai/bos` and `npx @basicallyai/bos`. **This source push does not publish the package to npm.** Use the local tarball commands above until registry publication has been separately verified.

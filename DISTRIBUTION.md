@@ -13,16 +13,16 @@ npm run test:package
 npm run package:npm
 ```
 
-The tarball appears as `releases/basicallyai-bos-3.2.0.tgz`. Try it without publishing:
+The tarball appears as `releases/basicallyai-bos-3.2.1.tgz`. Try it without publishing:
 
 ```sh
-npm install --global ./releases/basicallyai-bos-3.2.0.tgz
+npm install --global ./releases/basicallyai-bos-3.2.1.tgz
 basically-os --help
 basically-os --no-open
 ```
 
 ```sh
-npx --yes --package ./releases/basicallyai-bos-3.2.0.tgz basically-os --no-open
+npx --yes --package ./releases/basicallyai-bos-3.2.1.tgz basically-os --no-open
 ```
 
 The npm package checks actually install and run the tarball, including its prebundled Tiptap/ProseMirror editor and third-party licenses, Canvas/code/KaTeX/font assets and hoisted runtime dependencies. Build-only editor dependencies are not installed at runtime. They also verify empty model setup, authentication, persistent standalone notes, independent Canvas creation and Save to Notes, opt-in search setup, paths containing spaces, persistent user-data directories, and absence of private/development files. They do not publish anything or call paid models.

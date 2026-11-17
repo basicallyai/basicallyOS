@@ -1,6 +1,6 @@
 {
   "name": "@basicallyai/bos",
-  "version": "3.2.0",
+  "version": "3.2.1",
   "description": "A local-first AI workspace with conversations, authorized projects, Markdown notes and agent-managed memory.",
   "license": "Apache-2.0",
   "repository": {

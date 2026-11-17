@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, readFile, writeFile, rename } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, rename, symlink, access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fixture } from './helpers.mjs';
 import { Resources } from '../resources.mjs';
@@ -42,6 +42,26 @@ test('interrupted operation journals roll back only matching versions and retain
   const restored = new Resources(fix.app.store); await restored.initialize(); t.after(() => restored.close());
   assert.equal(await readFile(join(row.root, 'Recover.md'), 'utf8'), '# Original'); assert.equal(await readFile(join(row.root, 'Keep.md'), 'utf8'), '# External edit after interruption');
   const history = await restored.history(); assert.ok(history.some(row => row.status === 'rolled-back')); assert.ok(history.some(row => row.status === 'recovery-required'));
+});
+
+test('canonical private roots remain inaccessible through aliased profile paths and parent grants', async t => {
+  const fix = await fixture(); t.after(() => fix.close());
+  const alias = join(fix.directory, 'profile-alias'); await symlink(fix.app.store.home, alias, process.platform === 'win32' ? 'junction' : 'dir');
+  const store = Object.create(fix.app.store); store.directory = join(alias, 'app');
+  const service = new Resources(store); await service.initialize(); t.after(() => service.close());
+  await assert.rejects(service.attach({ path: fix.app.store.directory, confirm: true }), /private/);
+  const parent = await service.attach({ path: fix.app.store.home, confirm: true });
+  await assert.rejects(service.read({ workspaceId: parent.id, path: 'app/connections.json' }), /outside|private/);
+});
+
+test('implicit parent snapshots retain actual permission metadata for reviewed undo', async t => {
+  const fix = await fixture(); t.after(() => fix.close()); const row = await folder(fix), service = fix.app.resources;
+  const plan = await service.plan({ action: 'write', workspaceId: row.id, path: 'nested/deep/Note.md', revision: null, content: '# Test' });
+  const parents = plan.changes.filter(change => change.after?.directory); assert.equal(parents.length, 2);
+  for (const change of parents) if (process.platform !== 'win32') assert.equal(change.after.mode, 0o700);
+  const applied = await service.commit(plan);
+  for (const change of plan.changes) assert.deepEqual(await service.snapshot(change.ref), change.after);
+  await service.undo(applied.operationId); await assert.rejects(access(join(row.root, 'nested')));
 });
 
 test('failed multi-file writes never roll back over a detected external edit', async t => {

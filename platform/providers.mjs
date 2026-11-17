@@ -70,7 +70,7 @@ export function resolveConnection(config, selection, local) {
     contextWindow: saved.contextWindow, maxTokens: saved.maxTokens, reasoning: !!saved.reasoning,
     input: saved.vision ? ['text', 'image'] : ['text'], cost: { ...emptyCost, ...Object.fromEntries(Object.entries(saved.cost || {}).map(([key, value]) => [key, value ?? 0])) },
     compat: { ...(provider.id === 'local' ? { supportsDeveloperRole: false, supportsUsageInStreaming: true } : {}) } };
-  const models = createModels({ identity: { userAgent: { custom: 'basically-os/3.2.0' }, attribution: null } });
+  const models = createModels({ identity: { userAgent: { custom: 'basically-os/3.2.1' }, attribution: null } });
   models.setProvider(createProvider({ id: provider.id, name: provider.name, baseUrl: provider.baseUrl, models: [model],
     auth: { apiKey: { name: provider.name + ' API key', resolve: async () => ({ auth: provider.apiKey ? { apiKey: provider.apiKey } : {} }) } },
     api: implementations[provider.api]() }));

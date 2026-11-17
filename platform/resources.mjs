@@ -29,6 +29,7 @@ function metadata(content) {
 export class Resources {
   constructor(store, publish = () => {}) { this.store = store; this.publish = publish; this.queue = Promise.resolve(); this.index = new Map(); this.resolutions = new Map(); this.version = 0; this.closed = false; }
   async initialize() {
+    this.privateRoot = await realpath(this.store.directory);
     this.file = join(this.store.directory, 'workspaces.json'); this.layoutFile = join(this.store.directory, 'knowledge-layout.json');
     this.config = await readJson(this.file, { version: 1, workspaces: [] });
     // First-party notes use the same revision checks, index and tools as optional projects.
@@ -57,7 +58,7 @@ export class Resources {
   async attach(body) {
     if (body.confirm !== true || typeof body.path !== 'string' || !isAbsolute(body.path)) throw new Error('Explicitly confirm an absolute local folder path to grant access.');
     const root = await realpath(body.path), identity = await stat(root, { bigint: true }); if (!identity.isDirectory() || dirname(root) === root || excluded.has(basename(root).toLowerCase())) throw new Error('Choose an existing project or notes folder, not a private metadata directory.');
-    if (inside(this.store.directory, root)) throw new Error('The private application-data directory cannot be attached. Choose a project or notes folder instead.');
+    if (inside(this.privateRoot, root)) throw new Error('The private application-data directory cannot be attached. Choose a project or notes folder instead.');
     return this.exclusive(async () => {
       if (this.config.workspaces.filter(row => !row.managed).length >= 32) throw new Error('At most 32 additional attached folders are supported.');
       if (this.config.workspaces.some(row => row.root.toLocaleLowerCase() === root.toLocaleLowerCase())) throw new Error('That folder is already attached. Use it from either Chat or Notes.');
@@ -86,7 +87,7 @@ export class Resources {
       try { const info = await lstat(current); if (info.isSymbolicLink() || info.isFile() && info.nlink > 1) throw new Error('Symbolic links, hard-linked files and junctions are not followed. Attach ordinary files in their own folder.'); }
       catch (error) { if (write && error.code === 'ENOENT') continue; throw error; }
     }
-    if (!inside(base, current) || inside(this.store.directory, current)) throw new Error('Path is outside the authorized folder.'); return current;
+    if (!inside(base, current) || inside(this.privateRoot, current)) throw new Error('Path is outside the authorized folder.'); return current;
   }
   async tree(id, folder = '') {
     const directory = await this.path({ workspaceId: id, path: folder });
@@ -252,7 +253,7 @@ export class Resources {
       let parent = posix.dirname(change.ref.path);
       while (parent !== '.') {
         const target = { workspaceId: change.ref.workspaceId, path: parent };
-        if (!changes.some(row => row.ref.workspaceId === target.workspaceId && row.ref.path === parent) && !await this.snapshot(target, scope)) changes.push({ ref: target, before: null, after: { directory: true } });
+        if (!changes.some(row => row.ref.workspaceId === target.workspaceId && row.ref.path === parent) && !await this.snapshot(target, scope)) await add(target, { directory: true });
         parent = posix.dirname(parent);
       }
     }

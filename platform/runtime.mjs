@@ -251,7 +251,7 @@ export class Runtime {
           ...workspaceTools(run.workspace).filter(tool => !run.scope.length || tool.name !== 'run_command'),
           ...(this.memories?.mode() !== 'off' && !chat.memoryDisabled ? [...memoryTools(this.store, () => this.publish(null, 'memory')), ...(this.memories ? managedMemoryTools(this.memories, 'AI · ' + chat.id, run.scope, run) : [])] : []), ...(this.resources && run.scope.length ? resourceTools(this.resources, run) : []), ...(this.notes ? noteTools(this.notes, run) : []), ...(this.canvases ? this.canvases.tools(run) : []), ...(chat.webSearch && this.web ? this.web.tools(run) : []),
         ] : [] },
-      sessionId: chat.id, identity: { userAgent: { custom: 'basically-os/3.2.0' }, attribution: null }, toolExecution: 'sequential',
+      sessionId: chat.id, identity: { userAgent: { custom: 'basically-os/3.2.1' }, attribution: null }, toolExecution: 'sequential',
       streamFn: (model, context, options) => {
         run.requestStarted = performance.now();
         return connection.models.streamSimple(model, context, { ...options,
