@@ -1,0 +1,143 @@
+name: Publish to npm
+
+# Publishing is gated on the tagged commit: version/tag agreement, no republish,
+# build, the full Node suite and the real tarball install/start checks all run
+# first. Only then is the reviewed source published.
+#
+# One-time npm setup (owner action, cannot be done from this repository):
+#   npmjs.com → @basicallyai/bos → Settings → Trusted Publisher → GitHub Actions
+#   Organization/owner: basicallyai   Repository: basicallyOS
+#   Workflow filename: npm-publish.yml   Environment: (leave empty)
+# That lets npm trust this exact workflow through short-lived OIDC credentials, so
+# no long-lived NPM_TOKEN is stored. As a fallback, add an npm automation token as
+# the repository secret NPM_TOKEN; it is used only if present.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to publish, e.g. v3.3.1'
+        required: true
+        type: string
+      dry_run:
+        description: 'Run every check and npm publish --dry-run without uploading'
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-publish-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: npm
+      - name: Confirm the tag matches the package version
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          case "$TAG" in
+            v*)
+              if [ "v$version" != "$TAG" ]; then
+                echo "::error::Tag $TAG does not match package.json version $version. Nothing was published."
+                exit 1
+              fi ;;
+            *)
+              if [ "$DRY_RUN" != "true" ]; then
+                echo "::error::Real publication must run from a version tag (expected v$version), not $TAG."
+                exit 1
+              fi
+              echo "::notice::Dry run on $TAG: version $version would be published from tag v$version." ;;
+          esac
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          if npm view "@basicallyai/bos@$version" version >/dev/null 2>&1; then
+            echo "ALREADY_PUBLISHED=true" >> "$GITHUB_ENV"
+            echo "::warning::@basicallyai/bos@$version is already on npm. A real publish will be refused; dry runs still work."
+          else
+            echo "ALREADY_PUBLISHED=false" >> "$GITHUB_ENV"
+          fi
+      - run: npm ci --ignore-scripts
+      - name: Prepare installed-browser namespace sandbox on Ubuntu
+        run: bash platform/ci-browser-sandbox.sh
+      - run: npm run build
+      - run: npm test
+      - run: npm run test:package
+      - name: Record the reviewed artifact
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP" >/dev/null
+          artifact=$(ls "$RUNNER_TEMP"/*.tgz)
+          echo "Published candidate: $(basename "$artifact") ($(wc -c < "$artifact") bytes)"
+          echo "SHA-256: $(sha256sum "$artifact" | cut -d' ' -f1)"
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: npm
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm ci --ignore-scripts
+      - name: Resolve version and publication state
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          if npm view "@basicallyai/bos@$version" version >/dev/null 2>&1; then
+            echo "ALREADY_PUBLISHED=true" >> "$GITHUB_ENV"
+          else
+            echo "ALREADY_PUBLISHED=false" >> "$GITHUB_ENV"
+          fi
+      - name: Publish dry run (no upload)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true'
+        run: npm publish --dry-run --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish to the public npm registry
+        if: github.event_name == 'push' || github.event.inputs.dry_run != 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ "$ALREADY_PUBLISHED" = "true" ]; then
+            echo "::error::@basicallyai/bos@$VERSION is already published. Bump the version instead of republishing."
+            exit 1
+          fi
+          npm publish --access public --provenance
+      - name: Wait for the registry to serve the version and tarball
+        if: github.event_name == 'push' || github.event.inputs.dry_run != 'true'
+        run: |
+          # npm can answer an upload with 202 / "being processed" while its index and
+          # tarball are still replicating, so publication is confirmed by both URLs.
+          for attempt in $(seq 1 40); do
+            index=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/@basicallyai%2fbos")
+            tarball=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/@basicallyai/bos/-/bos-$VERSION.tgz")
+            echo "attempt $attempt: index=$index tarball=$tarball"
+            if [ "$index" = "200" ] && [ "$tarball" = "200" ]; then
+              echo "::notice::@basicallyai/bos@$VERSION is public and downloadable."
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::npm accepted the publish but the registry did not serve both the index and tarball in time. Check npmjs.com before advertising this version."
+          exit 1
